@@ -3,7 +3,7 @@
     <parent>
         <groupId>org.dhatim</groupId>
         <artifactId>fastexcel-parent</artifactId>
-        <version>0-SNAPSHOT</version>
+        <version>0.12.10-SR0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>fastexcel-reader</artifactId>
@@ -41,5 +41,31 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.apache.commons.compress</pattern>
+                                    <shadedPattern>org.dhatim.apache.commons.compress</shadedPattern>
+                                </relocation>
+                            </relocations>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

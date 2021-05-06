@@ -2,13 +2,14 @@ package org.dhatim.fastexcel.reader;
 
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 import javax.xml.stream.XMLStreamException;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +61,47 @@ class OPCPackage implements AutoCloseable {
         return filenameRegex.matcher(entryName).replaceFirst("$1_rels/$2.rels");
     }
 
+    static OPCPackage open(File inputFile) throws IOException {
+        return open(inputFile, false);
+    }
+
+    static OPCPackage open(File inputFile, boolean withFormat) throws IOException {
+        return new OPCPackage(inputFile, withFormat);
+    }
+
+    static OPCPackage open(InputStream inputStream) throws IOException {
+        return open(inputStream, false);
+    }
+
+    static OPCPackage open(InputStream inputStream, boolean withFormat) throws IOException {
+        byte[] compressedBytes = toByteArray(inputStream);
+        return new OPCPackage(new SeekableInMemoryByteChannel(compressedBytes), withFormat);
+    }
+
+    private static byte[] toByteArray(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        copy(input, output);
+        return output.toByteArray();
+    }
+
+    public static long copy(InputStream input, OutputStream output) throws IOException {
+        return copy(input, output, 8024);
+    }
+
+    public static long copy(InputStream input, OutputStream output, int buffersize) throws IOException {
+        if (buffersize < 1) {
+            throw new IllegalArgumentException("buffersize must be bigger than 0");
+        }
+        final byte[] buffer = new byte[buffersize];
+        int n;
+        long count = 0;
+        while (-1 != (n = input.read(buffer))) {
+            output.write(buffer, 0, n);
+            count += n;
+        }
+        return count;
+    }
+
     private Map<String, String> readWorkbookPartsIds(String workbookRelsEntryName) throws IOException, XMLStreamException {
         String xlFolder = workbookRelsEntryName.substring(0, workbookRelsEntryName.indexOf("_rel"));
         Map<String, String> partsIdById = new HashMap<>();
@@ -109,8 +151,8 @@ class OPCPackage implements AutoCloseable {
         try (SimpleXmlReader reader = new SimpleXmlReader(factory, getRequiredEntryContent(styleXml))) {
             AtomicBoolean insideCellXfs = new AtomicBoolean(false);
             while (reader.goTo(() -> reader.isStartElement("numFmt") ||
-                reader.isStartElement("cellXfs") || reader.isEndElement("cellXfs") ||
-                insideCellXfs.get())) {
+                    reader.isStartElement("cellXfs") || reader.isEndElement("cellXfs") ||
+                    insideCellXfs.get())) {
                 if (reader.isStartElement("cellXfs")) {
                     insideCellXfs.set(true);
                 } else if (reader.isEndElement("cellXfs")) {
@@ -120,7 +162,7 @@ class OPCPackage implements AutoCloseable {
                     String formatCode = reader.getAttributeRequired("formatCode");
                     fmtIdToFmtString.put(reader.getAttributeRequired("numFmtId"), formatCode);
                 } else if (insideCellXfs.get() && reader.isStartElement("xf")) {
-                    fmtIdList.add(reader.getAttribute ("numFmtId"));
+                    fmtIdList.add(reader.getAttribute("numFmtId"));
                 }
             }
         }
@@ -129,24 +171,7 @@ class OPCPackage implements AutoCloseable {
 
     private InputStream getRequiredEntryContent(String name) throws IOException {
         return Optional.ofNullable(getEntryContent(name))
-            .orElseThrow(() -> new ExcelReaderException(name + " not found"));
-    }
-
-    static OPCPackage open(File inputFile) throws IOException {
-        return open(inputFile, false);
-    }
-
-    static OPCPackage open(File inputFile, boolean withFormat) throws IOException {
-        return new OPCPackage(inputFile, withFormat);
-    }
-
-    static OPCPackage open(InputStream inputStream) throws IOException {
-        return open(inputStream, false);
-    }
-
-    static OPCPackage open(InputStream inputStream, boolean withFormat) throws IOException {
-        byte[] compressedBytes = IOUtils.toByteArray(inputStream);
-        return new OPCPackage(new SeekableInMemoryByteChannel(compressedBytes), withFormat);
+                .orElseThrow(() -> new ExcelReaderException(name + " not found"));
     }
 
     InputStream getSharedStrings() throws IOException {
@@ -180,7 +205,7 @@ class OPCPackage implements AutoCloseable {
         String name = this.workbookPartsById.get(sheet.getId());
         if (name == null) {
             String msg = format("Sheet#%s '%s' is missing an entry in workbook rels (for id: '%s')",
-                sheet.getIndex(), sheet.getName(), sheet.getId());
+                    sheet.getIndex(), sheet.getName(), sheet.getId());
             throw new ExcelReaderException(msg);
         }
         return getRequiredEntryContent(name);
@@ -200,9 +225,9 @@ class OPCPackage implements AutoCloseable {
         public static final String WORKBOOK_EXCEL_MACRO_ENABLED_MAIN_CONTENT_TYPE =
                 "application/vnd.ms-excel.sheet.macroEnabled.main+xml";
         public static final String SHARED_STRINGS_CONTENT_TYPE =
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
         public static final String STYLE_CONTENT_TYPE =
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml";
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml";
         String workbook;
         String sharedStrings;
         String style;
